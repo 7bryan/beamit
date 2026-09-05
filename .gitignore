@@ -1,0 +1,49 @@
+# Executables & Binaries
+/bin/
+/dist/
+/build/
+*.exe
+*.exe?
+*.dll
+*.so
+*.dylib
+cmd/beamit/beamit
+cmd/beamit/beamit.exe
+
+# Go Test & Output Files
+*.test
+*.out
+*.prof
+*.coverage
+
+# Beam Application Data & State
+*.beam
+*.tmp
+*.part
+
+# Environment & Credentials
+.env
+.env.*
+*.pem
+*.key
+*.crt
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Dependencies & Vendors (Optional: un-comment if using vendor mode)
+# /vendor/
+
+# Future Mobile & Cross-Platform Builds
+/mobile/android/.gradle/
+/mobile/android/app/build/
+/mobile/ios/Pods/
+/mobile/ios/DerivedData/
+.flutter-plugins
+.flutter-plugins-dependencies
