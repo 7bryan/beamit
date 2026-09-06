@@ -1,9 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/7bryan/beamit/pkg/engine"
 )
@@ -15,31 +16,33 @@ func main() {
 		return
 	}
 
-	testFile := os.Args[1]
-	fmt.Printf("Analyzing file: %s...\n", testFile)
+	filePath := os.Args[1]
+	port := 8000
 
-	// generate manifest
-	manifest, err := engine.GenerateManifest(testFile)
+	fmt.Printf("Initializing BeamIt server for: %s\n", filePath)
+	server, err := engine.NewTransferServer(filePath, port)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("Error creating server: %v\n", err)
+	}
+
+	err = server.Start()
+	if err != nil {
+		fmt.Printf("Error starting server: %v\n", err)
 		return
 	}
 
-	// pretty print the manifest JSON
-	manifestJson, _ := json.MarshalIndent(manifest, "", "  ")
-	fmt.Println("\n Generated File Manifest:")
-	fmt.Println(string(manifestJson))
+	fmt.Printf("Server running on http://localhost:%d\n", port)
+	fmt.Println("Endpoints available:")
+	fmt.Printf("	- Manifest: http://localhost:%d/manifest\n", port)
+	fmt.Printf("	- Download: http://localhost:%d/download\n", port)
+	fmt.Println("\nPress Ctrl+C to stop server")
 
-	// test disk allocation
-	dummyOutput := "download_test.tmp"
-	fmt.Printf("\n Preallocating %d bytes on disk for '%s'...\n", manifest.FileSize, dummyOutput)
-	err = engine.PreallocateFile(dummyOutput, manifest.FileSize)
-	if err != nil {
-		fmt.Printf("Error preallocating: %v\n", err)
-		return
-	}
-	fmt.Println("File pre-allocation successful!")
+	// wait to interupt signal
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
+	<-stopChan
 
-	// cleanup test file
-	os.Remove(dummyOutput)
+	fmt.Println("\nShutting down server")
+	server.Stop()
+	fmt.Println("Server Stopped gracefully")
 }
