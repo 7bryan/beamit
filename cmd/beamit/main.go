@@ -12,37 +12,72 @@ import (
 func main() {
 	fmt.Println("BeamIt: ")
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run ./cmd/beamit <path-to-test-file>")
+		fmt.Println("Usage:")
+		fmt.Println("		go run ./cmd/beamit send <filepath>")
+		fmt.Println("		go run ./cmd/beamit receive <server-url>")
 		return
 	}
 
-	filePath := os.Args[1]
-	port := 8080
+	mode := os.Args[1]
 
-	fmt.Printf("Initializing BeamIt server for: %s\n", filePath)
+	switch mode {
+	case "send":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: go run ./cmd/beamit send <filepath>")
+			return
+		}
+		runServer(os.Args[2])
+
+	case "receive":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: go run ./cmd/beamit receive <server-url>")
+			return
+		}
+		runClient(os.Args[2])
+	}
+}
+
+func runServer(filePath string) {
+	port := 8080
 	server, err := engine.NewTransferServer(filePath, port)
 	if err != nil {
-		fmt.Printf("Error creating server: %v\n", err)
+		fmt.Printf("Error initializing server: %v\n", err)
+		return
 	}
 
-	err = server.Start()
-	if err != nil {
+	if err := server.Start(); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Server running on http://localhost:%d\n", port)
-	fmt.Println("Endpoints available:")
-	fmt.Printf("	- Manifest: http://localhost:%d/manifest\n", port)
-	fmt.Printf("	- Download: http://localhost:%d/download\n", port)
-	fmt.Println("\nPress Ctrl+C to stop server")
+	fmt.Printf("Serving '%s' on http://localhost:%d\n", server.Manifest.FileName, port)
+	fmt.Println("Press Ctrl+C")
 
-	// wait to interupt signal
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 	<-stopChan
 
-	fmt.Println("\nShutting down server")
 	server.Stop()
-	fmt.Println("Server Stopped gracefully")
+	fmt.Println("Server stopped")
+}
+
+func runClient(serverUrl string) {
+	client := engine.NewTransferClient(serverUrl, 4) // 4 concurent worker
+
+	fmt.Printf("Connecting to %s...\n", serverUrl)
+	manifest, err := client.FetchManifest()
+	if err != nil {
+		fmt.Printf("Error fetching manifest: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Downloading '%s' (%d bytes, %d chunks)\n", manifest.FileName, manifest.FileSize, manifest.TotalChunks)
+
+	err = client.DownloadFile(manifest, "./")
+	if err != nil {
+		fmt.Printf("Download failed: %v\n", err)
+		return
+	}
+
+	fmt.Println("Download completed successfully & verified via SHA-256")
 }
