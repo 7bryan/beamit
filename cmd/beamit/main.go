@@ -17,7 +17,7 @@ func main() {
 	}
 
 	filePath := os.Args[1]
-	port := 8000
+	port := 8080
 
 	fmt.Printf("Initializing BeamIt server for: %s\n", filePath)
 	server, err := engine.NewTransferServer(filePath, port)
