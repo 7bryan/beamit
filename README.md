@@ -30,3 +30,25 @@ beamit/
 ├── go.sum
 └── README.md
 ```
+
+### How the Client Worker Pool Works
+
+```
+                     [ Fetch /manifest ]
+                              │
+                    [ Preallocate File ]
+                              │
+                    [ Send Chunks to Channel ]
+                              │
+         ┌────────────────────┼────────────────────┐
+         ▼                    ▼                    ▼
+   [ Worker 1 ]         [ Worker 2 ]         [ Worker 3 ]
+   GET bytes 0-1MB      GET bytes 1-2MB      GET bytes 2-3MB
+         │                    │                    │
+   Verify SHA-256       Verify SHA-256       Verify SHA-256
+         │                    │                    │
+   WriteAt(offset 0)    WriteAt(offset 1MB)  WriteAt(offset 2MB)
+         └────────────────────┼────────────────────┘
+                              ▼
+                     [ Download Complete ]
+```
