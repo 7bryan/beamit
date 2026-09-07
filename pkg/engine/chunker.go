@@ -24,7 +24,7 @@ type ChunkMetadata struct {
 type FileManifest struct {
 	FileName    string          `json:"file_name"`
 	FileSize    int64           `json:"file_size"`
-	ChunkSize   int64           `json:"chunk-size"`
+	ChunkSize   int64           `json:"chunk_size"`
 	TotalChunks int             `json:"total_chunks"`
 	Chunks      []ChunkMetadata `json:"chunks"`
 }
@@ -52,7 +52,8 @@ func GenerateManifest(filePath string) (*FileManifest, error) {
 	manifest := &FileManifest{
 		FileName:    filepath.Base(filePath),
 		FileSize:    fileSize,
-		TotalChunks: DefaultChunkSize,
+		ChunkSize:   DefaultChunkSize,
+		TotalChunks: totalChunks,
 		Chunks:      make([]ChunkMetadata, 0, totalChunks),
 	}
 
