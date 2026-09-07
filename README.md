@@ -52,3 +52,16 @@ beamit/
                               ▼
                      [ Download Complete ]
 ```
+
+### Automatic Local Peer Discovery
+
+Multicast DNS (mDNS / Zeroconf)
+
+```
+[ Sender Machine ]                                    [ Receiver Machine ]
+      │                                                         │
+      │ ─── 1. "Hey! I am BeamIt peer 'John-MacBook'" ───►      │ (Listening on
+      │      "I am sharing 'file.zip' on port 8080"             │  mDNS multicast)
+      │                                                         │
+      │ ◄─── 2. "Got it! Connecting to http://192.168.1.15:8080"┘
+```
