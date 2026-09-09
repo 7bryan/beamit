@@ -55,7 +55,7 @@ func (ts *TransferServer) Start() error {
 	// create TCP listener explicitly, allowing to verify the port bound successfully
 	listener, err := net.Listen("tcp", ts.server.Addr)
 	if err != nil {
-		return fmt.Errorf("failed to bind port &d: %w", ts.Port, err)
+		return fmt.Errorf("failed to bind port %d: %w", ts.Port, err)
 	}
 
 	ts.wg.Add(1)
