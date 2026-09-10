@@ -58,7 +58,19 @@ func runServer(filePath string) {
 	}
 
 	fmt.Printf("Serving '%s' on http://localhost:%d\n", server.Manifest.FileName, port)
-	fmt.Println("Press Ctrl+C")
+
+	localIP, err := discovery.GetLocalIP()
+	if err != nil {
+		fmt.Printf("Warning: could not detect LAN IP: %v\n", err)
+	} else {
+		pairURL := fmt.Sprintf("http://%s:%d/manifest", localIP, port) // adding /manifest endpoint
+		fmt.Printf("\nScan to connect: %s\n\n", pairURL)
+		if err := discovery.PrintQR(pairURL); err != nil {
+			fmt.Printf("Warning: failed to render QR code: %v\n", err)
+		}
+	}
+
+	fmt.Println("Press Ctrl+C to stop")
 
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
