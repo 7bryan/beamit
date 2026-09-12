@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -76,6 +78,8 @@ func runServer(filePath string) {
 		if err := discovery.PrintQR(pairURL); err != nil {
 			fmt.Printf("Warning: failed to render QR code: %v\n", err)
 		}
+
+		openBrowser(fmt.Sprintf("http://localhost:%d", port))
 	}
 
 	fmt.Println("Press Ctrl+C to stop")
@@ -126,4 +130,17 @@ func runClient() {
 	}
 
 	fmt.Println("Download completed successfully & verified via SHA-256")
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
