@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BeamIt</title>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>BeamIt</h1>
+      <p id="mode-label"></p>
+
+      <div id="drop-zone">
+        <p>Drag a file here, or</p>
+        <input type="file" id="file-input" />
+      </div>
+
+      <div id="status"></div>
+    </main>
+
+    <div id="consent-modal" class="hidden">
+      <div class="modal-box">
+        <p id="consent-text"></p>
+        <button id="accept-btn">Accept</button>
+        <button id="reject-btn">Reject</button>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
