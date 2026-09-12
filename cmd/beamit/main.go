@@ -73,7 +73,7 @@ func runServer(filePath string) {
 	if err != nil {
 		fmt.Printf("Warning: could not detect LAN IP: %v\n", err)
 	} else {
-		pairURL := fmt.Sprintf("http://%s:%d/manifest", localIP, port) // adding /manifest endpoint
+		pairURL := fmt.Sprintf("http://%s:%d/", localIP, port) // adding /manifest endpoint
 		fmt.Printf("\nScan to connect: %s\n\n", pairURL)
 		if err := discovery.PrintQR(pairURL); err != nil {
 			fmt.Printf("Warning: failed to render QR code: %v\n", err)
