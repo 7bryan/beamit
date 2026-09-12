@@ -22,10 +22,28 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 
+function getAutoDeviceName() {
+  const ua = navigator.userAgent;
+  let os = "Device";
+
+  if (/iPhone/i.test(ua)) os = "iPhone";
+  else if (/iPad/i.test(ua)) os = "iPad";
+  else if (/Android/i.test(ua)) {
+    // Tries to extract actual model name (e.g., "Pixel 7" or "SM-G991B")
+    const match = ua.match(/Android[^;]+; ([^;)]+)/);
+    os =
+      match && match[1] && !match[1].includes("Build")
+        ? match[1]
+        : "Android Device";
+  } else if (/Macintosh/i.test(ua)) os = "Mac";
+  else if (/Windows/i.test(ua)) os = "Windows PC";
+  else if (/Linux/i.test(ua)) os = "Linux PC";
+
+  return os;
+}
+
 function deviceName() {
-  // Just a display label for the other side's consent popup — not
-  // security-relevant, so localStorage is fine here.
-  return localStorage.getItem("beamit-name") || "A device";
+  return localStorage.getItem("beamit-name") || getAutoDeviceName();
 }
 
 async function pollUntilResolved(id) {
