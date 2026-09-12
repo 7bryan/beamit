@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/7bryan/beamit/pkg/web"
 )
 
 // hosts a file manifest and serves chunk byte ranges to peers
@@ -72,6 +74,15 @@ func (ts *TransferServer) Start() error {
 	// endpoints 7: pending
 	mux.HandleFunc("/pending", ts.handlePending)
 
+	// endpoints 8: request status
+	mux.HandleFunc("/request-status", ts.handleRequestStatus)
+
+	staticFS, err := web.StaticFS()
+	if err != nil {
+		return fmt.Errorf("failed to load embededd web assests: %w", err)
+	}
+	mux.Handle("/", http.FileServer(http.FS(staticFS)))
+
 	ts.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", ts.Port),
 		Handler:      mux,
@@ -126,12 +137,34 @@ func (ts *TransferServer) handleManifest(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(ts.Manifest)
 }
 
+func (ts *TransferServer) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	req := ts.Consent.Get(id)
+	if req == nil {
+		http.Error(w, "request not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(req)
+}
+
+// local request bypass
+func isLocalRequest(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return host == "127.0.0.1" || host == "::1"
+}
+
 // handles HTTP range Requests to serve specific file byte chunks
 func (ts *TransferServer) handleDownload(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if ts.Consent.ValidateToken(token, RequestDownload) == nil {
-		http.Error(w, "Missing or invalid download token - request acess first", http.StatusForbidden)
-		return
+	if !isLocalRequest(r) {
+		token := r.URL.Query().Get("token")
+		if ts.Consent.ValidateToken(token, RequestDownload) == nil {
+			http.Error(w, "Missing or invalid download token - request acess first", http.StatusForbidden)
+			return
+		}
 	}
 
 	ts.mu.RLock()
@@ -175,10 +208,12 @@ func (ts *TransferServer) handleShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := r.URL.Query().Get("token")
-	if ts.Consent.ValidateToken(token, RequestUpload) == nil {
-		http.Error(w, "Missing or invalid upload token - request access first", http.StatusForbidden)
-		return
+	if !isLocalRequest(r) {
+		token := r.URL.Query().Get("token")
+		if ts.Consent.ValidateToken(token, RequestUpload) == nil {
+			http.Error(w, "Missing or invalid upload token - request access first", http.StatusForbidden)
+			return
+		}
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
