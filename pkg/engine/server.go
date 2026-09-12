@@ -19,13 +19,18 @@ type TransferServer struct {
 	FilePath string
 	Port     int
 
+	Consent *ConsentStore
+
 	mu     sync.RWMutex // guards Manifest and filePath, mutable after start()
 	server *http.Server
 	wg     sync.WaitGroup
 }
 
 func NewTransferServer(port int) *TransferServer {
-	return &TransferServer{Port: port}
+	return &TransferServer{
+		Port:    port,
+		Consent: NewConsentStore(),
+	}
 }
 
 func (ts *TransferServer) Share(filePath string) error {
@@ -54,6 +59,18 @@ func (ts *TransferServer) Start() error {
 
 	// endpoints 3: share
 	mux.HandleFunc("/share", ts.handleShare)
+
+	// endpoints 4: requesting a download
+	mux.HandleFunc("/request-download", ts.handleRequestDownload)
+
+	// endpoints 5: requesting an upload
+	mux.HandleFunc("/request-upload", ts.handleRequestUpload)
+
+	// endpoints 6: respond
+	mux.HandleFunc("/respond", ts.handleRespond)
+
+	// endpoints 7: pending
+	mux.HandleFunc("/pending", ts.handlePending)
 
 	ts.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", ts.Port),
@@ -111,6 +128,12 @@ func (ts *TransferServer) handleManifest(w http.ResponseWriter, r *http.Request)
 
 // handles HTTP range Requests to serve specific file byte chunks
 func (ts *TransferServer) handleDownload(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if ts.Consent.ValidateToken(token, RequestDownload) == nil {
+		http.Error(w, "Missing or invalid download token - request acess first", http.StatusForbidden)
+		return
+	}
+
 	ts.mu.RLock()
 	filePath := ts.FilePath
 	manifest := ts.Manifest
@@ -152,6 +175,12 @@ func (ts *TransferServer) handleShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token := r.URL.Query().Get("token")
+	if ts.Consent.ValidateToken(token, RequestUpload) == nil {
+		http.Error(w, "Missing or invalid upload token - request access first", http.StatusForbidden)
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB in-memory buffer, rest spills to temp files
 		http.Error(w, "File too large or malformed upload", http.StatusBadRequest)
@@ -190,4 +219,97 @@ func (ts *TransferServer) handleShare(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Sharing '%s'\n", filepath.Base(destPath))
+}
+
+type requestPayload struct {
+	FromDevice string `json:"from_device"`
+	FileName   string `json:"file_name,omitempty"` // for upload requests
+	FileSize   int64  `json:"file_size,omitempty"`
+}
+
+func (ts *TransferServer) handleRequestDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ts.mu.RLock()
+	manifest := ts.Manifest
+	ts.mu.RUnlock()
+
+	if manifest == nil {
+		http.Error(w, "Nothing is currently shared", http.StatusNotFound)
+		return
+	}
+
+	var payload requestPayload
+	json.NewDecoder(r.Body).Decode(&payload) // best-effort; empty FromDevice is fine
+	if payload.FromDevice == "" {
+		payload.FromDevice = "Unknown device"
+	}
+
+	req, err := ts.Consent.Create(RequestDownload, payload.FromDevice, manifest.FileName, manifest.FileSize)
+	if err != nil {
+		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(req)
+}
+
+func (ts *TransferServer) handleRequestUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload requestPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil || payload.FileName == "" {
+		http.Error(w, "file_name is required", http.StatusBadRequest)
+		return
+	}
+	if payload.FromDevice == "" {
+		payload.FromDevice = "Unknown device"
+	}
+
+	req, err := ts.Consent.Create(RequestUpload, payload.FromDevice, payload.FileName, payload.FileSize)
+	if err != nil {
+		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(req)
+}
+
+func (ts *TransferServer) handleRespond(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var body struct {
+		ID     string `json:"id"`
+		Accept bool   `json:"accept"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	req, err := ts.Consent.Respond(body.ID, body.Accept)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(req)
+}
+
+// handlePending lets the laptop's UI poll for anything awaiting a response.
+func (ts *TransferServer) handlePending(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ts.Consent.Pending())
 }
