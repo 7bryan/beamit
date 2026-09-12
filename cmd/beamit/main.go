@@ -37,27 +37,35 @@ func main() {
 
 func runServer(filePath string) {
 	port := 8080
-	server, err := engine.NewTransferServer(filePath, port)
-	if err != nil {
-		fmt.Printf("Error initializing server: %v\n", err)
-		return
-	}
+	server := engine.NewTransferServer(port)
 
 	if err := server.Start(); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		return
 	}
 
+	if filePath != "" {
+		if err := server.Share(filePath); err != nil {
+			fmt.Printf("Error sharing file: %v\n", err)
+			return
+		}
+		fmt.Printf("Serving '%s' on http://localhost:%d\n", server.Manifest.FileName, port)
+	} else {
+		fmt.Printf("Waiting for a file to share on http://localhost:%d\n", port)
+	}
+
 	// start mDNS announcement on local network
-	mdnsServer, err := discovery.AnnouncePeer(port, server.Manifest.FileName)
+	mdnsName := "BeamIt"
+	if server.Manifest != nil {
+		mdnsName = server.Manifest.FileName
+	}
+	mdnsServer, err := discovery.AnnouncePeer(port, mdnsName)
 	if err != nil {
 		fmt.Printf("Warning: mDNS auto-discovery failed: %v\n", err)
 	} else {
 		defer mdnsServer.Shutdown()
 		fmt.Println("Broadcasting presence on local Wi-Fi via mDNS...")
 	}
-
-	fmt.Printf("Serving '%s' on http://localhost:%d\n", server.Manifest.FileName, port)
 
 	localIP, err := discovery.GetLocalIP()
 	if err != nil {
